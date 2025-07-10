@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"sync"
 	"time"
 )
 
@@ -45,63 +44,35 @@ func maxChunks(data []int) int {
 	if len(data) == 0 {
 		return 0
 	}
-	if len(data) <= CHUNKS {
-		max := data[0]
-		for _, v := range data[1:] {
-			if v > max {
-				max = v
-			}
-		}
-		return max
-	}
 	leinghtChunk := len(data) / CHUNKS
+	// if len(data)< CHUNKS
 	if leinghtChunk == 0 {
-		leinghtChunk = 1
+		return maximum(data)
 	}
-	result := make([]int, 0, CHUNKS)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	wg.Add(CHUNKS)
-	for i := 0; i < CHUNKS; i++ {
-		start := i * leinghtChunk
-		if start >= len(data) {
-			continue
+	result := make(chan int)
+	for i := 1; i <= CHUNKS; i++ {
+		var chunk []int
+		if i != CHUNKS {
+			chunk = data[:leinghtChunk]
+			data = data[leinghtChunk:]
+			// last chunk(8)
+		} else {
+			chunk = data[:]
 		}
-		end := start + leinghtChunk
-		if i == CHUNKS-1 || end > len(data) {
-			end = len(data)
-		}
-		go func(beg, fin int) {
-			defer wg.Done()
-			if beg >= fin {
-				return
-			}
-			max := data[beg]
-			for _, v := range data[beg+1 : fin] {
-				if v > max {
-					max = v
-				}
-			}
-			mu.Lock()
-			result = append(result, max)
-			mu.Unlock()
-		}(start, end)
+		go func(chunk []int) {
+			//writing to chanel result
+			result <- maximum(chunk)
+		}(chunk)
 	}
-	wg.Wait()
+	fin := make([]int, 0, CHUNKS)
+	for range CHUNKS {
+		//reading from chanel result
+		fin = append(fin, <-result)
+	}
+	close(result)
 
-	if len(result) == 0 {
-		return 0
-	}
-
-	maxVal := result[0]
-	for _, v := range result[1:] {
-		if v > maxVal {
-			maxVal = v
-		}
-	}
-	return maxVal
+	return maximum(fin)
 }
-
 func main() {
 	fmt.Printf("Генерируем %d целых чисел", SIZE)
 	data := generateRandomElements(SIZE)
